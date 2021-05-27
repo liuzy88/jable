@@ -4,19 +4,20 @@ const cheerio = require('cheerio');
 const fetch = require('node-fetch');
 const Proxy = require('https-proxy-agent');
 
+const agent = new Proxy('http://127.0.0.1:1087');
 const dataFile = path.join(__dirname, 'data.json');
 const cacheDir = path.join(__dirname, 'Cache');
 const jpgDir = path.join(__dirname, 'Jpg');
 const m3u8Dir = path.join(__dirname, 'M3u8');
 
-var data = {};
 (async () => {
+    var data = {};
     if (fs.existsSync(dataFile)) {
         let text = fs.readFileSync(dataFile, 'utf-8');
         data = JSON.parse(text);
     }
     let i = 0;
-    while (++i < 10) { // 第一次436，以后10
+    while (++i < 10) { // 第一次500，以后10
         let arr = [];
         let $ = await getWeb(`https://jable.tv/new-release/${i}/`);
         $('.video-img-box').each(function() {
@@ -34,7 +35,7 @@ var data = {};
             if (!data[key]) {
                 console.log('Page', i, 'Detail', j, mm.name);
                 let $ = await getWeb(mm.url);
-                if ($) {
+                if ($ != null) {
                     mm.m3u8 = $('link[rel="preload"]').attr('href');
                     data[key] = mm;
                 }
@@ -58,7 +59,7 @@ async function getWeb(url) {
     let body;
     let useCache = false;
     if (fs.existsSync(cache_file)) {
-        if (url.indexOf('videos') !== -1) {
+        if (url.indexOf('videos') !== -1) { // 始终使用详情页缓存
             useCache = true;
         } else {
             let stat = fs.statSync(cache_file);
@@ -74,17 +75,18 @@ async function getWeb(url) {
     } else {
         console.debug('Fetch', url);
         body = await fetch(url, {
-            agent: new Proxy('http://127.0.0.1:1087'),
+            agent: agent,
             headers: {
                 'accept-encoding': 'gzip, deflate, br',
                 'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_16_0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/78.0.3904.108 Safari/537.36',
             },
-        }).then(res => res.text());
+        }).then(res => res.text()).catch(err => console.error('getWeb', err));
     }
     if (body && body.length > 100) {
         fs.writeFileSync(cache_file, body);
         return cheerio.load(body);
     }
+    return null;
 }
 
 async function getImg(url, dst) {
@@ -92,7 +94,7 @@ async function getImg(url, dst) {
         return;
     }
     await fetch(url, {
-        agent: new Proxy('http://127.0.0.1:1087'),
+        agent: agent,
         headers: {
             'accept-encoding': 'gzip, deflate, br',
             'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_16_0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/78.0.3904.108 Safari/537.36',
@@ -104,7 +106,7 @@ async function getImg(url, dst) {
             res.body.pipe(fs.createWriteStream(dst));
             console.log('saved', dst);
         }
-    }).catch(err => console.error(err));
+    }).catch(err => console.error('getImg', err));
 }
 
 async function getM3u8(url, m3u8, dst) {
@@ -112,7 +114,7 @@ async function getM3u8(url, m3u8, dst) {
         return;
     }
     await fetch(m3u8, {
-        agent: new Proxy('http://127.0.0.1:1087'),
+        agent: agent,
         headers: {
             'authority': 'gbb001.cdnlab.live',
             'pragma': 'no-cache',
@@ -129,5 +131,5 @@ async function getM3u8(url, m3u8, dst) {
     }).then(res => {
         res.body.pipe(fs.createWriteStream(dst));
         console.log('saved', dst);
-    }).catch(err => console.error(err));
+    }).catch(err => console.error('getM3u8', err));
 }
