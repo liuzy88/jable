@@ -4,56 +4,51 @@ const cheerio = require('cheerio');
 const fetch = require('node-fetch');
 const Proxy = require('https-proxy-agent');
 
-const dataFile = path.join(__dirname, 'new.json');
+const dataFile = path.join(__dirname, 'data.json');
 const cacheDir = path.join(__dirname, 'Cache');
 const jpgDir = path.join(__dirname, 'Jpg');
 const m3u8Dir = path.join(__dirname, 'M3u8');
 
+var data = {};
 (async () => {
-    let mm = [];
     if (fs.existsSync(dataFile)) {
         let text = fs.readFileSync(dataFile, 'utf-8');
-        mm = JSON.parse(text);
-        let M = {};
-        for (let i = 0; i < mm.length; i++) {
-            let name = mm[i].title.split(' ')[0];
-            M[name] = mm[i];
-        }
-        fs.writeFileSync(dataFile, JSON.stringify(M, null, 2));
-    } else {
-        let i = 0;
-        while (++i < 436) {
-            let $ = await getWeb(`https://jable.tv/new-release/${i}/`);
-            $('.video-img-box').each(function() {
-                console.log($(this).find('.detail a').text());
-                mm.push({
-                    title: $(this).find('.detail a').text(),
-                    url: $(this).find('.cover-md a').attr('href'),
-                    jpg: $(this).find('.cover-md img').attr('data-src'),
-                    mp4: $(this).find('.cover-md img').attr('data-preview'),
-                });
+        data = JSON.parse(text);
+    }
+    let i = 0;
+    while (++i < 10) { // 第一次436，以后10
+        let arr = [];
+        let $ = await getWeb(`https://jable.tv/new-release/${i}/`);
+        $('.video-img-box').each(function() {
+            console.log('Page', i, $(this).find('.detail a').text());
+            arr.push({
+                name: $(this).find('.detail a').text(),
+                url: $(this).find('.cover-md a').attr('href'),
+                jpg: $(this).find('.cover-md img').attr('data-src'),
+                mp4: $(this).find('.cover-md img').attr('data-preview'),
             });
-        }
-        for (let i = 0; i < mm.length; i++) {
-            if (!mm[i].m3u8) {
-                let url = mm[i].url;
-                let $ = await getWeb(url);
-                mm[i].m3u8 = $('link[rel="preload"]').attr('href');
-                console.log(mm.length, i, mm[i].m3u8);
+        });
+        for (let j = 0; j < arr.length; j++) {
+            let mm = arr[j];
+            let key = mm.name.split(' ')[0];
+            if (!data[key]) {
+                console.log('Page', i, 'Detail', j, mm.name);
+                let $ = await getWeb(mm.url);
+                if ($) {
+                    mm.m3u8 = $('link[rel="preload"]').attr('href');
+                    data[key] = mm;
+                }
             }
         }
-        fs.writeFileSync(dataFile, JSON.stringify(mm, null, 2));
     }
-    for (let i = 0; i < mm.length; i++) {
-        if (mm[i].m3u8) {
-            console.log(mm.length, i);
-            let name = mm[i].title.replaceAll('/', '_');
-            let imgUrl = mm[i].jpg;
-            let imgFile = path.join(jpgDir, name + path.extname(imgUrl));
-            await getImg(imgUrl, imgFile);
-            // let m3u8File = path.join(m3u8Dir, name + path.extname(mm[i].m3u8));
-            // await getM3u8(mm[i].url, mm[i].m3u8, m3u8File);
-        }
+    fs.writeFileSync(dataFile, JSON.stringify(data, null, 2));
+    for (let k in data) {
+        let mm = data[k];
+        let name = mm.name.replaceAll('/', '_');
+        let imgFile = path.join(jpgDir, name + path.extname(mm.jpg));
+        await getImg(mm.jpg, imgFile);
+        // let m3u8File = path.join(m3u8Dir, name + path.extname(mm.m3u8));
+        // await getM3u8(mm.url, mm.m3u8, m3u8File);
     }
 })().catch(err => console.error(err));
 
@@ -61,10 +56,23 @@ async function getWeb(url) {
     let cache_url = url.split('://')[1].replaceAll('/', '_');
     let cache_file = path.join(cacheDir, cache_url);
     let body;
+    let useCache = false;
     if (fs.existsSync(cache_file)) {
+        if (url.indexOf('videos') !== -1) {
+            useCache = true;
+        } else {
+            let stat = fs.statSync(cache_file);
+            if ((Date.now() - stat.atimeMs) < (1000 * 60 * 60 * 8)) { // 使用8小时之内的缓存
+                useCache = true;
+            } else {
+                fs.unlinkSync(cache_file);
+            }
+        }
+    }
+    if (useCache) {
         body = fs.readFileSync(cache_file);
     } else {
-        console.debug('--->', url);
+        console.debug('Fetch', url);
         body = await fetch(url, {
             agent: new Proxy('http://127.0.0.1:1087'),
             headers: {
@@ -74,9 +82,7 @@ async function getWeb(url) {
         }).then(res => res.text());
     }
     if (body && body.length > 100) {
-        if (url.indexOf('videos') !== -1) {
-            fs.writeFileSync(cache_file, body);
-        }
+        fs.writeFileSync(cache_file, body);
         return cheerio.load(body);
     }
 }
