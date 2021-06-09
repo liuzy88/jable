@@ -20,6 +20,7 @@ const m3u8Dir = path.join(__dirname, 'M3u8');
     while (++i < 10) { // 第一次500，以后10
         let arr = [];
         let $ = await getWeb(`https://jable.tv/new-release/${i}/`);
+        if ($ == null) { continue; }
         $('.video-img-box').each(function() {
             console.log('Page', i, $(this).find('.detail a').text());
             arr.push({
