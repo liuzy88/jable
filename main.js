@@ -42,6 +42,23 @@ function headers(authority, url) {
     };
 }
 
+async function download(that, download_url, save_path, retry) {
+    while (--retry > 0) {
+        const res = await fetch(download_url, headers(that.authority, that.url));
+        if (res.status === 401) {
+            fs.unlinkSync(that.cache_file);
+        }
+        if (res.status !== 200) {
+            if (fs.existsSync(save_path)) { fs.unlinkSync(save_path); }
+            console.log(`download failed, ${download_url} => ${res.status} ${res.statusText}`);
+            return await download(that, download_url, save_path, retry);
+        }
+        const buff = await res.buffer();
+        fs.writeFileSync(save_path, buff, 'binary');
+        return;
+    };
+}
+
 function Jable(url) {
     this.url = url;
     that = this;
@@ -76,13 +93,15 @@ function Jable(url) {
         let m3u8_path = path.join(that.dir, m3u8_file);
         if (!fs.existsSync(m3u8_path)) {
             console.log(`getM3u8: ${that.m3u8_url} => ${m3u8_path}`);
-            await fetch(that.m3u8_url, headers()).then(res => {
-                if (res.status !== 200) {
-                    fs.unlinkSync(that.cache_file);
-                    throw new Error(`${res.status} ${res.statusText} 下载m3u8文件失败，请删除缓存重试。`)
-                }
-                return res.buffer();
-            }).then(buff => fs.writeFileSync(m3u8_path, buff, 'binary'));
+            await download(that, that.m3u8_url, m3u8_path, 3);
+            // await fetch(that.m3u8_url, headers()).then(res => {
+            //     if (res.status === 401) { fs.unlinkSync(that.cache_file); }
+            //     if (res.status !== 200) {
+            //         if (fs.existsSync(m3u8_path)) { fs.unlink(m3u8_path); }
+            //         throw new Error(`${res.status} ${res.statusText} 下载m3u8文件失败，${that.m3u8_url}`)
+            //     }
+            //     return res.buffer();
+            // }).then(buff => fs.writeFileSync(m3u8_path, buff, 'binary'));
         }
         that.parser = new Parser();
         that.parser.push(fs.readFileSync(m3u8_path));
@@ -118,10 +137,15 @@ function Jable(url) {
         if (!fs.existsSync(ts_path)) {
             if (!fs.existsSync(dl_path)) {
                 console.log(`getTs: [${i}/${that.total}] ${ts_url} => ${dl_path}`);
-                await fetch(ts_url, headers(that.authority, that.url)).then(res => {
-                    if (res.status !== 200) { throw new Error(`HTTP ${res.status} ${res.statusText}`) }
-                    return res.buffer()
-                }).then(buff => fs.writeFileSync(dl_path, buff, 'binary'));
+                await download(that, ts_url, dl_path, 3);
+                // await fetch(ts_url, headers(that.authority, that.url)).then(res => {
+                //     if (res.status === 401) { fs.unlinkSync(that.cache_file); }
+                //     if (res.status !== 200) {
+                //         if (fs.existsSync(dl_path)) { fs.unlink(dl_path); }
+                //         throw new Error(`${res.status} ${res.statusText} 下载ts文件失败，${ts_url}`)
+                //     }
+                //     return res.buffer();
+                // }).then(buff => fs.writeFileSync(dl_path, buff, 'binary'));
             }
             if (!fs.existsSync(dl_path)) { throw new Error('dl error'); }
 
@@ -153,11 +177,8 @@ function Jable(url) {
         console.log(cmd);
         return new Promise((resolve, reject) => {
             exec(cmd, function(err, stdout, stderr) {
-                if (err) {
-                    console.log(err, stderr);
-                } else {
-                    console.log(stdout);
-                }
+                if (err) { console.log(err); }
+                console.log(stderr, stdout);
                 resolve(true);
             });
         });
@@ -166,8 +187,17 @@ function Jable(url) {
         await that.getWeb();
         if (that.mp4_path && fs.existsSync(that.mp4_path)) { return; }
         await that.getM3u8();
-        for (let i = 0; i < that.total; i++) {
-            await that.getTs(i);
+        let thread = 8; // 并行数量
+        let times = (that.total % thread) > 0 ? parseInt(that.total / thread) + 1 : (that.total / thread); // 要多少次
+        for (let m = 0; m < times; m++) {
+            let pool = [];
+            for (let n = 0; n < thread; n++) {
+                let i = (m * thread) + n;
+                if (i < that.total) { // 下标从0到总数减1
+                    pool.push(that.getTs(i));
+                }
+            }
+            await Promise.all(pool);
         }
         await that.merge();
     }
