@@ -5,8 +5,8 @@ const https = require('https');
 const crypto = require('crypto');
 const cheerio = require('cheerio');
 const fetch = require('node-fetch');
-const exec = require('child_process').exec
-const { Parser } = require('m3u8-parser');
+const spawn = require('child_process').spawn
+const Parser = require('m3u8-parser').Parser;
 const Proxy = require('https-proxy-agent');
 
 const agent = new Proxy('http://127.0.0.1:1087');
@@ -42,20 +42,30 @@ function headers(authority, url) {
     };
 }
 
+async function sleep(n) {
+    return new Promise((resolve, reject) => {
+        setTimeout(function() {
+            resolve(true);
+        }, 1000 * n);
+    });
+}
+
 async function download(that, download_url, save_path, retry) {
-    while (--retry > 0) {
+    while (retry-- > 0) {
         const res = await fetch(download_url, headers(that.authority, that.url));
         if (res.status === 401) {
             fs.unlinkSync(that.cache_file);
         }
-        if (res.status !== 200) {
+        if (res.status === 200) {
+            const buff = await res.buffer();
+            fs.writeFileSync(save_path, buff, 'binary');
+            break;
+        } else {
+            console.log(`download failed, ${retry} ${download_url} => ${res.status} ${res.statusText}`);
             if (fs.existsSync(save_path)) { fs.unlinkSync(save_path); }
-            console.log(`download failed, ${download_url} => ${res.status} ${res.statusText}`);
-            return await download(that, download_url, save_path, retry);
+            await sleep(1);
+            await download(that, download_url, save_path, retry);
         }
-        const buff = await res.buffer();
-        fs.writeFileSync(save_path, buff, 'binary');
-        return;
     };
 }
 
@@ -94,14 +104,6 @@ function Jable(url) {
         if (!fs.existsSync(m3u8_path)) {
             console.log(`getM3u8: ${that.m3u8_url} => ${m3u8_path}`);
             await download(that, that.m3u8_url, m3u8_path, 3);
-            // await fetch(that.m3u8_url, headers()).then(res => {
-            //     if (res.status === 401) { fs.unlinkSync(that.cache_file); }
-            //     if (res.status !== 200) {
-            //         if (fs.existsSync(m3u8_path)) { fs.unlink(m3u8_path); }
-            //         throw new Error(`${res.status} ${res.statusText} 下载m3u8文件失败，${that.m3u8_url}`)
-            //     }
-            //     return res.buffer();
-            // }).then(buff => fs.writeFileSync(m3u8_path, buff, 'binary'));
         }
         that.parser = new Parser();
         that.parser.push(fs.readFileSync(m3u8_path));
@@ -138,14 +140,6 @@ function Jable(url) {
             if (!fs.existsSync(dl_path)) {
                 console.log(`getTs: [${i}/${that.total}] ${ts_url} => ${dl_path}`);
                 await download(that, ts_url, dl_path, 3);
-                // await fetch(ts_url, headers(that.authority, that.url)).then(res => {
-                //     if (res.status === 401) { fs.unlinkSync(that.cache_file); }
-                //     if (res.status !== 200) {
-                //         if (fs.existsSync(dl_path)) { fs.unlink(dl_path); }
-                //         throw new Error(`${res.status} ${res.statusText} 下载ts文件失败，${ts_url}`)
-                //     }
-                //     return res.buffer();
-                // }).then(buff => fs.writeFileSync(dl_path, buff, 'binary'));
             }
             if (!fs.existsSync(dl_path)) { throw new Error('dl error'); }
 
@@ -173,14 +167,12 @@ function Jable(url) {
             data.push(`file '${ts_name}'`);
         }
         fs.writeFileSync(that.txt_path, data.join('\r\n'));
-        const cmd = `ffmpeg -f concat -safe 0 -i '${that.txt_path}' -c copy '${that.mp4_path}'`;
-        console.log(cmd);
         return new Promise((resolve, reject) => {
-            exec(cmd, function(err, stdout, stderr) {
-                if (err) { console.log(err); }
-                console.log(stderr, stdout);
-                resolve(true);
-            });
+            const ffmpeg = spawn('ffmpeg', ['-f', 'concat', '-safe', '0', '-i', that.txt_path, '-c', 'copy', that.mp4_path]);
+            console.log(ffmpeg.spawnargs.join(' '));
+            ffmpeg.stdout.on('data', data => { console.log(data.toString().trim()); });
+            ffmpeg.stderr.on('data', data => { console.error(data.toString().trim()); });
+            ffmpeg.on('close', (code) => { resolve(code); });
         });
     }
     this.start = async () => {
@@ -200,6 +192,7 @@ function Jable(url) {
             await Promise.all(pool);
         }
         await that.merge();
+        process.exit();
     }
     return this;
 }
