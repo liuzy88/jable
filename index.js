@@ -6,8 +6,8 @@ const Proxy = require('https-proxy-agent');
 
 const agent = new Proxy('http://127.0.0.1:1087');
 const dataFile = path.join(__dirname, 'data.json');
-const cacheDir = path.join(__dirname, 'Cache');
-const jpgDir = path.join(__dirname, 'Jpg');
+const cacheDir = path.join(__dirname, '_Cache');
+const jpgDir = path.join(__dirname, '_Jpg');
 if (!fs.existsSync(cacheDir)) { fs.mkdirSync(cacheDir); }
 if (!fs.existsSync(jpgDir)) { fs.mkdirSync(jpgDir); }
 

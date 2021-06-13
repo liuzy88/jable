@@ -5,15 +5,16 @@ const https = require('https');
 const crypto = require('crypto');
 const cheerio = require('cheerio');
 const fetch = require('node-fetch');
-const spawn = require('child_process').spawn
-const Parser = require('m3u8-parser').Parser;
 const Proxy = require('https-proxy-agent');
+const { Parser } = require('m3u8-parser');
+const { exec, spawn } = require('child_process');
 
 const agent = new Proxy('http://127.0.0.1:1087');
 const dataFile = path.join(__dirname, 'data.json');
-const cacheDir = path.join(__dirname, 'Cache');
+const cacheDir = path.join(__dirname, '_Cache');
 
 (async () => {
+    // await new Jable('https://jable.tv/videos/fsdss-234/').start();
     let text = fs.readFileSync(dataFile, 'utf-8');
     var data = JSON.parse(text);
     for (let k in data) {
@@ -167,13 +168,19 @@ function Jable(url) {
             data.push(`file '${ts_name}'`);
         }
         fs.writeFileSync(that.txt_path, data.join('\r\n'));
-        return new Promise((resolve, reject) => {
-            const ffmpeg = spawn('ffmpeg', ['-f', 'concat', '-safe', '0', '-i', that.txt_path, '-c', 'copy', that.mp4_path]);
-            console.log(ffmpeg.spawnargs.join(' '));
-            ffmpeg.stdout.on('data', data => { console.log(data.toString().trim()); });
-            ffmpeg.stderr.on('data', data => { console.error(data.toString().trim()); });
-            ffmpeg.on('close', (code) => { resolve(code); });
+        let code = await new Promise((resolve, reject) => {
+            const shell = spawn('ffmpeg', ['-f', 'concat', '-safe', '0', '-i', that.txt_path, '-c', 'copy', that.mp4_path]);
+            console.log(shell.spawnargs.join(' '));
+            shell.stdout.on('data', data => { console.log(data.toString().trim()); });
+            shell.stderr.on('data', data => { console.error(data.toString().trim()); });
+            shell.on('close', (code) => { resolve(code); });
         });
+        if (code === 0 && fs.existsSync(that.mp4_path)) {
+            for (let i = 0; i < that.total; i++) {
+                let ts_name = ('00000' + i).slice(-1 * (that.total.toString().length)) + '.ts';
+                fs.unlinkSync(path.join(that.dir, ts_name));
+            }
+        }
     }
     this.start = async () => {
         await that.getWeb();
@@ -192,7 +199,6 @@ function Jable(url) {
             await Promise.all(pool);
         }
         await that.merge();
-        process.exit();
     }
     return this;
 }
