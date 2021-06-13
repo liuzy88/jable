@@ -186,17 +186,17 @@ function Jable(url) {
         await that.getWeb();
         if (that.mp4_path && fs.existsSync(that.mp4_path)) { return; }
         await that.getM3u8();
-        let thread = 8; // 并行数量
+        let thread = 8; // 并行下载数量
         let times = (that.total % thread) > 0 ? parseInt(that.total / thread) + 1 : (that.total / thread); // 要多少次
         for (let m = 0; m < times; m++) {
-            let pool = [];
+            let batch = []; // 一批次
             for (let n = 0; n < thread; n++) {
                 let i = (m * thread) + n;
                 if (i < that.total) { // 下标从0到总数减1
-                    pool.push(that.getTs(i));
+                    batch.push(that.getTs(i));
                 }
             }
-            await Promise.all(pool);
+            await Promise.all(batch); // 等所有并行完成
         }
         await that.merge();
     }
