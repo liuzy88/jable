@@ -8,7 +8,8 @@ const agent = new Proxy('http://127.0.0.1:1087');
 const dataFile = path.join(__dirname, 'data.json');
 const cacheDir = path.join(__dirname, 'Cache');
 const jpgDir = path.join(__dirname, 'Jpg');
-const m3u8Dir = path.join(__dirname, 'M3u8');
+if (!fs.existsSync(cacheDir)) { fs.mkdirSync(cacheDir); }
+if (!fs.existsSync(jpgDir)) { fs.mkdirSync(jpgDir); }
 
 (async () => {
     var data = {};
@@ -17,31 +18,18 @@ const m3u8Dir = path.join(__dirname, 'M3u8');
         data = JSON.parse(text);
     }
     let i = 0;
-    while (++i < 10) { // 第一次500，以后10
-        let arr = [];
+    while (++i < 500) { // 第一次500，以后10
         let $ = await getWeb(`https://jable.tv/new-release/${i}/`);
         if ($ == null) { continue; }
         $('.video-img-box').each(function() {
             console.log('Page', i, $(this).find('.detail a').text());
-            arr.push({
-                name: $(this).find('.detail a').text(),
+            data[$(this).find('.detail a').text().split(' ')[0]] = {
                 url: $(this).find('.cover-md a').attr('href'),
+                name: $(this).find('.detail a').text(),
                 jpg: $(this).find('.cover-md img').attr('data-src'),
                 mp4: $(this).find('.cover-md img').attr('data-preview'),
-            });
+            };
         });
-        for (let j = 0; j < arr.length; j++) {
-            let mm = arr[j];
-            let key = mm.name.split(' ')[0];
-            if (!data[key]) {
-                console.log('Page', i, 'Detail', j, mm.name);
-                let $ = await getWeb(mm.url);
-                if ($ != null) {
-                    mm.m3u8 = $('link[rel="preload"]').attr('href');
-                    data[key] = mm;
-                }
-            }
-        }
     }
     fs.writeFileSync(dataFile, JSON.stringify(data, null, 2));
     for (let k in data) {
@@ -49,14 +37,13 @@ const m3u8Dir = path.join(__dirname, 'M3u8');
         let name = mm.name.replaceAll('/', '_');
         let imgFile = path.join(jpgDir, name + path.extname(mm.jpg));
         await getImg(mm.jpg, imgFile);
-        // let m3u8File = path.join(m3u8Dir, name + path.extname(mm.m3u8));
-        // await getM3u8(mm.url, mm.m3u8, m3u8File);
     }
+    require('./main');
 })().catch(err => console.error(err));
 
 async function getWeb(url) {
-    let cache_url = url.split('://')[1].replaceAll('/', '_');
-    let cache_file = path.join(cacheDir, cache_url);
+    let cache_name = url.split('://')[1].replaceAll('/', '_');
+    let cache_file = path.join(cacheDir, cache_name);
     let body;
     let useCache = false;
     if (fs.existsSync(cache_file)) {
@@ -95,7 +82,7 @@ async function getImg(url, dst) {
         return;
     }
     await fetch(url, {
-        agent: agent,
+        // agent: agent,
         headers: {
             'accept-encoding': 'gzip, deflate, br',
             'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_16_0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/78.0.3904.108 Safari/537.36',
@@ -108,29 +95,4 @@ async function getImg(url, dst) {
             console.log('saved', dst);
         }
     }).catch(err => console.error('getImg', err));
-}
-
-async function getM3u8(url, m3u8, dst) {
-    if (fs.existsSync(dst)) {
-        return;
-    }
-    await fetch(m3u8, {
-        agent: agent,
-        headers: {
-            'authority': 'gbb001.cdnlab.live',
-            'pragma': 'no-cache',
-            'cache-control': 'no-cache',
-            'origin': 'https://jable.tv',
-            'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X -1_0_0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/78.0.3904.108 Safari/537.36',
-            'accept': '*/*',
-            'sec-fetch-site': 'cross-site',
-            'sec-fetch-mode': 'cors',
-            'referer': 'https://jable.tv/videos/n0495/',
-            'accept-encoding': 'gzip, deflate, br',
-            'accept-language': 'zh-CN,zh;q=0.9,en;q=0.8,ja;q=0.7,zh-TW;q=0.6',
-        },
-    }).then(res => {
-        res.body.pipe(fs.createWriteStream(dst));
-        console.log('saved', dst);
-    }).catch(err => console.error('getM3u8', err));
 }
