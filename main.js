@@ -23,7 +23,7 @@ const cacheDir = path.join(__dirname, '_Cache');
     } else {
         await new Jable('https://jable.tv/videos/dv-1303/', 'DV-1303 為隊員們處理性慾的超可愛棒球部經紀人 小島南').start();
     }
-})().catch(err => console.log(err));
+})().catch(err => console.err(err));
 
 function headers(authority, url) {
     return {
@@ -50,7 +50,7 @@ async function sleep(n) {
     return new Promise((resolve, reject) => {
         setTimeout(function() {
             resolve(true);
-        }, 1000 * n);
+        }, n);
     });
 }
 
@@ -71,7 +71,7 @@ async function download(that, download_url, save_path, trys) {
     } else {
         console.log(`download: ${trys} failed, ${download_url} => ${res.status} ${res.statusText}`);
         if (fs.existsSync(save_path)) { fs.unlinkSync(save_path); }
-        await sleep(1);
+        await sleep(1000);
         await download(that, download_url, save_path, ++trys);
     }
 }
@@ -137,9 +137,6 @@ function Jable(url, name) {
     this.getTs = async (i) => {
         let segment = that.parser.manifest.segments[i];
 
-        let key = await that.getKey(segment);
-        if (!key) { throw new Error('getKey error'); }
-
         let ts_url = that.prefix + segment.uri;
         let dl_name = path.basename(ts_url, '.ts');
         let dl_path = path.join(that.dir, dl_name + '.dl');
@@ -152,6 +149,9 @@ function Jable(url, name) {
             }
             if (!fs.existsSync(dl_path)) { throw new Error('getTs error'); }
 
+            let key = await that.getKey(segment);
+            if (!key) { throw new Error('getKey error'); }
+
             await that.decrypt(key, segment, dl_path, ts_path);
         }
     }
@@ -161,7 +161,7 @@ function Jable(url, name) {
         if (!iv) { throw new Error('iv error'); }
 
         let cipher = crypto.createDecipheriv((segment.key.method + "-cbc").toLowerCase(), key, iv);
-        cipher.on('error', console.error);
+        cipher.on('error', err => console.error(err));
         let inputData = fs.readFileSync(src);
         let outputData = Buffer.concat([cipher.update(inputData), cipher.final()]);
         fs.writeFileSync(dst, outputData);
@@ -179,9 +179,9 @@ function Jable(url, name) {
         let code = await new Promise((resolve, reject) => {
             const shell = spawn('ffmpeg', ['-f', 'concat', '-safe', '0', '-i', that.txt_path, '-c', 'copy', that.mp4_path]);
             console.log(shell.spawnargs.join(' '));
-            shell.stdout.on('data', data => { console.log(data.toString().trim()); });
-            shell.stderr.on('data', data => { console.error(data.toString().trim()); });
-            shell.on('close', (code) => { resolve(code); });
+            shell.stdout.on('data', data => console.log(data.toString().trim()));
+            shell.stderr.on('data', data => console.error(data.toString().trim()));
+            shell.on('close', code => resolve(code));
         });
         if (code === 0 && fs.existsSync(that.mp4_path)) {
             for (let i = 0; i < that.total; i++) {
@@ -189,6 +189,44 @@ function Jable(url, name) {
                 fs.unlinkSync(path.join(that.dir, ts_name));
             }
         }
+    }
+    this.getAllTs = async () => {
+        const tasks = [];
+        for (let i = 0; i < that.total; i++) {
+            tasks.push(i);
+        }
+        let thread = 16; // 并行下载数量
+        const works = [];
+        for (let i = 1; i <= thread; i++) {
+            works.push(i);
+        }
+        return new Promise((resolve, reject) => {
+            for (let i = 0; i < thread; i++) {
+                (async () => {
+                    while(true) {
+                        const task = tasks.shift();
+                        // console.log(`task #${task}, works.length=${works.length}`);
+                        if (task === undefined && works.length == thread) { // 没有任务了 且 工人都在休息
+                            resolve(true);
+                            break;
+                        }
+                        if (task !== undefined) {
+                            // console.log(`got task #${task}, more ${tasks.length} count.`);
+                            const work = works.shift();
+                            if (work) {
+                                // console.log(`work #${work} begin task #${task}`);
+                                await that.getTs(task);
+                                // console.log(`work #${work} end task #${task}`);
+                                works.push(work);
+                            } else {
+                                tasks.push(task);
+                            }
+                        }
+                        await sleep(50);
+                    }
+                })();
+            }
+        });
     }
     this.start = async () => {
         if (that.mp4_path && fs.existsSync(that.mp4_path)) {
@@ -198,18 +236,7 @@ function Jable(url, name) {
         console.log(`start: url=${this.url} id=${this.id} name=${this.name}`);
         await that.getWeb();
         await that.getM3u8();
-        let thread = 10; // 并行下载数量
-        let times = (that.total % thread) > 0 ? parseInt(that.total / thread) + 1 : (that.total / thread); // 要多少次
-        for (let m = 0; m < times; m++) {
-            let batch = []; // 一批次
-            for (let n = 0; n < thread; n++) {
-                let i = (m * thread) + n;
-                if (i < that.total) { // 下标从0到总数减1
-                    batch.push(that.getTs(i));
-                }
-            }
-            await Promise.all(batch); // 等一批次所有并行完成
-        }
+        await that.getAllTs();
         await that.merge();
     }
     return this;
