@@ -61,17 +61,19 @@ async function download(that, download_url, save_path, trys) {
     }
     trys = trys || 1;
     const res = await fetch(download_url, headers(that.authority, that.url));
-    if (res.status === 401) {
-        fs.unlinkSync(that.cache_file);
-    }
     if (res.status === 200) {
         console.log(`download: ${trys} success, ${download_url} => ${res.status} ${res.statusText}`);
         const buff = await res.buffer();
         fs.writeFileSync(save_path, buff, 'binary');
     } else {
         console.log(`download: ${trys} failed, ${download_url} => ${res.status} ${res.statusText}`);
-        if (fs.existsSync(save_path)) { fs.unlinkSync(save_path); }
-        await sleep(1000);
+        if (res.status === 401) {
+            fs.unlinkSync(that.cache_file);
+        }
+        if (fs.existsSync(save_path)) {
+            fs.unlinkSync(save_path);
+        }
+        await sleep(1000); // 一秒后重试
         await download(that, download_url, save_path, ++trys);
     }
 }
@@ -87,7 +89,7 @@ function Jable(url, name) {
     let mp4_name = `${this.name}.mp4`;
     this.mp4_path = path.join(this.dir, mp4_name);
     that = this;
-    this.getWeb = async () => {
+    this.fetchWeb = async () => {
         let cache_name = that.url.split('://')[1].replaceAll('/', '_');
         that.cache_file = path.join(cacheDir, cache_name);
         let body;
@@ -95,8 +97,8 @@ function Jable(url, name) {
             console.log(`useCache: ${that.cache_file}`);
             body = fs.readFileSync(that.cache_file, 'utf-8');
         } else {
-            console.log(`getWeb: ${that.url}`);
-            body = await fetch(that.url, { agent: agent, headers: headers().headers }).then(res => res.text()).catch(err => console.error('getWeb', err));
+            console.log(`fetchWeb: ${that.url}`);
+            body = await fetch(that.url, { agent: agent, headers: headers().headers }).then(res => res.text()).catch(err => console.error('fetchWeb', err));
             fs.writeFileSync(that.cache_file, body, 'utf-8');
         }
         that.m3u8_url = body.split("var hlsUrl = '")[1].split("';")[0];
@@ -105,13 +107,13 @@ function Jable(url, name) {
             that.name = $('h4').eq(0).text();
         }
     }
-    this.getM3u8 = async () => {
+    this.fetchM3u8 = async () => {
         that.authority = URL.parse(that.m3u8_url).host;
         that.prefix = path.dirname(that.m3u8_url) + '/';
         let m3u8_file = that.id + '.m3u8';
         let m3u8_path = path.join(that.dir, m3u8_file);
         if (!fs.existsSync(m3u8_path)) {
-            console.log(`getM3u8: ${that.m3u8_url} => ${m3u8_path}`);
+            console.log(`fetchM3u8: ${that.m3u8_url} => ${m3u8_path}`);
             await download(that, that.m3u8_url, m3u8_path);
         }
         that.parser = new Parser();
@@ -119,22 +121,23 @@ function Jable(url, name) {
         that.parser.end();
         that.total = that.parser.manifest.segments.length;
     }
-    this.getKey = async (segment) => {
+    this.fetchKey = async (segment) => {
         let key_url = that.prefix + segment.key.uri;
-        let key_path = path.join(that.dir, that.id + '.key');
+        that.key_path = path.join(that.dir, that.id + '.key');
         if (!that.key) {
-            if (!fs.existsSync(key_path)) {
-                console.log(`getKey: ${key_url} => ${key_path}`);
-                await fetch(key_url, headers()).then(res => res.buffer()).then(buff => fs.writeFileSync(key_path, buff, 'binary'));
+            if (!fs.existsSync(that.key_path)) {
+                console.log(`fetchKey: ${key_url} => ${that.key_path}`);
+                // await fetch(key_url, headers()).then(res => res.buffer()).then(buff => fs.writeFileSync(that.key_path, buff, 'binary'));
+                await download(that, key_url, that.key_path);
             }
-            that.key = fs.readFileSync(key_path);
+            that.key = fs.readFileSync(that.key_path);
             if (that.key.length == 32) {
-                that.key = Buffer.from(fs.readFileSync(key_path, { encoding: 'utf8' }), 'hex');
+                that.key = Buffer.from(fs.readFileSync(that.key_path, { encoding: 'utf8' }), 'hex');
             }
         }
         return that.key;
     }
-    this.getTs = async (i) => {
+    this.fetchTs = async (i) => {
         let segment = that.parser.manifest.segments[i];
 
         let ts_url = that.prefix + segment.uri;
@@ -144,13 +147,13 @@ function Jable(url, name) {
         let ts_path = path.join(that.dir, ts_name);
         if (!fs.existsSync(ts_path)) {
             if (!fs.existsSync(dl_path)) {
-                console.log(`getTs: [${i}/${that.total}] ${ts_url} => ${dl_path}`);
+                console.log(`fetchTs: [${i}/${that.total}] ${ts_url} => ${dl_path}`);
                 await download(that, ts_url, dl_path);
             }
-            if (!fs.existsSync(dl_path)) { throw new Error('getTs error'); }
+            if (!fs.existsSync(dl_path)) { throw new Error('fetchTs error'); }
 
-            let key = await that.getKey(segment);
-            if (!key) { throw new Error('getKey error'); }
+            let key = await that.fetchKey(segment);
+            if (!key) { throw new Error('fetchKey error'); }
 
             await that.decrypt(key, segment, dl_path, ts_path);
         }
@@ -190,7 +193,7 @@ function Jable(url, name) {
             }
         }
     }
-    this.getAllTs = async () => {
+    this.fetchAllTs = async () => {
         const tasks = [];
         for (let i = 0; i < that.total; i++) {
             tasks.push(i);
@@ -203,7 +206,7 @@ function Jable(url, name) {
         return new Promise((resolve, reject) => {
             for (let i = 0; i < thread; i++) {
                 (async () => {
-                    while(true) {
+                    while (true) {
                         const task = tasks.shift();
                         // console.log(`task #${task}, works.length=${works.length}`);
                         if (task === undefined && works.length == thread) { // 没有任务了 且 工人都在休息
@@ -215,7 +218,7 @@ function Jable(url, name) {
                             const work = works.shift();
                             if (work) {
                                 // console.log(`work #${work} begin task #${task}`);
-                                await that.getTs(task);
+                                await that.fetchTs(task);
                                 // console.log(`work #${work} end task #${task}`);
                                 works.push(work);
                             } else {
@@ -234,9 +237,9 @@ function Jable(url, name) {
             return;
         }
         console.log(`start: url=${this.url} id=${this.id} name=${this.name}`);
-        await that.getWeb();
-        await that.getM3u8();
-        await that.getAllTs();
+        await that.fetchWeb();
+        await that.fetchM3u8();
+        await that.fetchAllTs();
         await that.merge();
     }
     return this;
