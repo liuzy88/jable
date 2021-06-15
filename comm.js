@@ -75,6 +75,8 @@ async function fetchBody(url, useProxy, trys) {
     gotCookie(res.headers.raw()['set-cookie'] || []);
     if (res.status === 200) {
         return await res.text();
+    } else if (res.status === 404) {
+        // cancel
     } else {
         if (++trys >= 2) {
             console.log(`fetchBody: #${trys} ${url} => cancel`);
