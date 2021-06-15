@@ -16,9 +16,9 @@ const { DATA_FILE, getCache, mkdir, sleep, fetchBody, fetchSave } = require('./c
             await new Jable(`https://jable.tv/videos/${process.argv[2].toLowerCase()}/`).start();
         } else {
             process.stdout.write(`命令行使用说明:
-    MacOS:    main-macos   <番号>      # 例如： main-macos   ssis-062
-    Linux:    main-linux   <番号>      # 例如： main-linux   ebod-833
-    Windows:  main-win.exe <番号>      # 例如： main-win.exe ndra-089\r\n`);
+    MacOS:    jable-macos   <番号>      # 例如： jable-macos   ssis-062
+    Linux:    jable-linux   <番号>      # 例如： jable-linux   ebod-833
+    Windows:  jable-win.exe <番号>      # 例如： jable-win.exe ndra-089\r\n`);
             await sleep(3);
             return
         }
@@ -28,8 +28,6 @@ const { DATA_FILE, getCache, mkdir, sleep, fetchBody, fetchSave } = require('./c
         for (let k in data) {
             await new Jable(data[k].url, data[k].name).start();
         }
-    } else if (process.argv[2]) {
-        
     } else {
         await new Jable('https://jable.tv/videos/abp-583/').start();
     }

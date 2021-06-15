@@ -2,9 +2,10 @@
   "name": "jable",
   "version": "1.0.0",
   "description": "jable.tv",
-  "main": "index.js",
+  "main": "jable.js",
   "scripts": {
-    "test": "node main.js"
+    "start": "node index.js",
+    "run": "node jable.js"
   },
   "author": "liuzy",
   "license": "ISC",

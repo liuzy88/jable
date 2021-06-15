@@ -17,5 +17,5 @@ brew install ffmpeg
 ffmpeg -version
 
 # 开始下载
-node main.js
+node jable.js
 ```
