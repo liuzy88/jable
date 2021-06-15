@@ -3,9 +3,9 @@ const path = require('path');
 const fetch = require('node-fetch');
 const Proxy = require('https-proxy-agent');
 
-const { TEMP_DIR, MP4_DIR, HTTP_PROXY, RETRY, THREAD, USER_AGENT } = require('./conf');
-const CACHE_DIR = path.join(TEMP_DIR, '.Cache')
-const DATA_FILE = path.join(TEMP_DIR, '.data.json')
+const { TMP_DIR, MP4_DIR, PROXY, RETRY, THREAD, USER_AGENT } = require('./conf');
+const CACHE_DIR = path.join(TMP_DIR, '.Cache')
+const DATA_FILE = path.join(TMP_DIR, '.data.json')
 
 function mkdir(dir) {
     if (!fs.existsSync(dir)) {
@@ -13,7 +13,7 @@ function mkdir(dir) {
     }
 }
 
-mkdir(TEMP_DIR), mkdir(CACHE_DIR), mkdir(MP4_DIR);
+mkdir(TMP_DIR), mkdir(CACHE_DIR), mkdir(MP4_DIR);
 
 function getCache(url) {
     let cache_file = url.split('://')[1].replace(/\//g, '_');
@@ -42,7 +42,7 @@ function options(useProxy, authority, referer) {
             'user-agent': USER_AGENT,
         }
     };
-    if (useProxy) { opts.agent = new Proxy(`http://${HTTP_PROXY}`); }
+    if (useProxy) { opts.agent = new Proxy(`http://${PROXY}`); }
     if (authority) { opts.headers.authority = authority; }
     if (referer) { opts.headers.referer = referer; }
     return opts;

@@ -1,7 +1,7 @@
 {
   "name": "jable",
   "version": "1.0.0",
-  "description": "https://jable.tv/",
+  "description": "jable.tv",
   "main": "index.js",
   "scripts": {
     "test": "node main.js"

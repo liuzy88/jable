@@ -2,8 +2,8 @@ const fs = require('fs');
 const path = require('path');
 const cheerio = require('cheerio');
 
-const { MP4_DIR } = require('./conf');
-const { DATA_FILE, getCache, fetchBody, fetchSave } = require('./kit');
+const { MP4_DIR, PAGES } = require('./conf');
+const { DATA_FILE, getCache, fetchBody, fetchSave } = require('./comm');
 
 (async () => {
     let data = {};
@@ -12,7 +12,7 @@ const { DATA_FILE, getCache, fetchBody, fetchSave } = require('./kit');
         data = JSON.parse(text);
     }
     let i = 0;
-    while (++i < 5) { // 第一次500，以后10
+    while (++i < PAGES) {
         let $ = await getWeb(`https://jable.tv/new-release/${i}/`);
         if ($) {
             $('.video-img-box').each(function () {

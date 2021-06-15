@@ -6,8 +6,8 @@ const fetch = require('node-fetch');
 const { Parser } = require('m3u8-parser');
 const { spawn } = require('child_process');
 
-const { TEMP_DIR, MP4_DIR, THREAD } = require('./conf');
-const { DATA_FILE, getCache, mkdir, sleep, fetchBody, fetchSave } = require('./kit');
+const { TMP_DIR, MP4_DIR, THREAD } = require('./conf');
+const { DATA_FILE, getCache, mkdir, sleep, fetchBody, fetchSave } = require('./comm');
 
 (async () => {
     if (fs.existsSync(DATA_FILE)) {
@@ -25,7 +25,7 @@ function Jable(url, name) {
     this.url = url;
     this.name = name.replace(/\//g, '_');
     this.id = this.name.split(' ')[0];
-    this.dir = path.join(TEMP_DIR, this.id);
+    this.dir = path.join(TMP_DIR, this.id);
     mkdir(this.dir);
     let txt_file = `${this.id}.txt`;
     this.txt_path = path.join(this.dir, txt_file);
