@@ -2,7 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const cheerio = require('cheerio');
 
-const { MP4_DIR, PAGES } = require('./conf');
+const { IMG_DIR, PAGES } = require('./conf');
 const { DATA_FILE, getCache, fetchBody, fetchSave } = require('./comm');
 
 (async () => {
@@ -30,9 +30,9 @@ const { DATA_FILE, getCache, fetchBody, fetchSave } = require('./comm');
     for (let k in data) {
         let mm = data[k];
         let img_file = mm.name + path.extname(mm.jpg);
-        let img_path = path.join(MP4_DIR, img_file);
+        let img_path = path.join(IMG_DIR, img_file);
         if (!fs.existsSync(img_path)) {
-            await fetchSave(mm.jpg, img_path);
+            await fetchSave(mm.jpg, img_path, true);
         }
     }
 })().catch(err => console.error(err));

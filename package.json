@@ -10,6 +10,7 @@
   "license": "ISC",
   "dependencies": {
     "cheerio": "*",
+    "cookie": "^0.4.1",
     "https-proxy-agent": "^5.0.0",
     "m3u8-parser": "^4.7.0",
     "node-fetch": "^2.6.1"

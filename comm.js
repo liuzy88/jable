@@ -1,11 +1,12 @@
 const fs = require('fs');
 const path = require('path');
+const Cookie = require('cookie');
 const fetch = require('node-fetch');
 const Proxy = require('https-proxy-agent');
 
-const { TMP_DIR, MP4_DIR, PROXY, RETRY, THREAD, USER_AGENT } = require('./conf');
+const { TMP_DIR, MP4_DIR, PROXY, RETRY, USER_AGENT } = require('./conf');
 const CACHE_DIR = path.join(TMP_DIR, '.Cache')
-const DATA_FILE = path.join(TMP_DIR, '.data.json')
+const DATA_FILE = path.join(__dirname, 'data.json')
 
 function mkdir(dir) {
     if (!fs.existsSync(dir)) {
@@ -28,6 +29,17 @@ async function sleep(ms) {
     });
 }
 
+const COOKIES = {};
+
+function gotCookie(cookies) {
+    if (cookies.length) {
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = Cookie.parse(cookies[i].trim());
+            COOKIES[Object.keys(cookie)[i]] = cookie;
+        }
+    }
+}
+
 function options(useProxy, authority, referer) {
     const opts = {
         headers: {
@@ -45,17 +57,26 @@ function options(useProxy, authority, referer) {
     if (useProxy) { opts.agent = new Proxy(`http://${PROXY}`); }
     if (authority) { opts.headers.authority = authority; }
     if (referer) { opts.headers.referer = referer; }
+    if (COOKIES.length) {
+        const cookies = [];
+        for (let k in COOKIES) {
+            cookies.push(`${k}=${COOKIES[k][k]}`);
+        }
+        opts.headers['Cookie'] = cookies.join('; ');
+    }
     return opts;
 }
 
 async function fetchBody(url, useProxy, trys) {
+    trys = trys || 1;
     if (trys >= RETRY) {
         console.log(`fetchBody: #${trys} ${url} => cancel`);
         return;
     }
-    trys = trys || 1;
+    console.log(`fetchBody: #${trys} ${url}`);
     const res = await fetch(url, options(useProxy));
     console.log(`fetchBody: #${trys} ${url} => ${res.status} ${res.statusText}`);
+    gotCookie(res.headers.raw()['set-cookie'] || []);
     if (res.status === 200) {
         return await res.text();
     } else {
@@ -65,13 +86,19 @@ async function fetchBody(url, useProxy, trys) {
 }
 
 async function fetchSave(url, save_path, useProxy, authority, referer, trys) {
+    if (fs.existsSync(save_path)) {
+        console.log(`fetchSave: #${trys} ${url} => exists`);
+        return;
+    }
+    trys = trys || 1;
     if (trys >= RETRY) {
         console.log(`fetchSave: #${trys} ${url} => cancel`);
         return;
     }
-    trys = trys || 1;
+    console.log(`fetchSave: #${trys} ${url}`);
     const res = await fetch(url, options(useProxy, authority, referer));
-    console.log(`fetchSave: #${trys} ${url} => ${res.status} ${res.statusText}`);
+    console.log(`fetchSave: #${trys} ${url} => ${save_path} ${res.status} ${res.statusText}`);
+    gotCookie(res.headers.raw()['set-cookie'] || []);
     if (res.status === 200) {
         const buff = await res.buffer();
         fs.writeFileSync(save_path, buff, 'binary');
