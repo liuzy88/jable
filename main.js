@@ -16,14 +16,56 @@ const { DATA_FILE, getCache, mkdir, sleep, fetchBody, fetchSave } = require('./c
         for (let k in data) {
             await new Jable(data[k].url, data[k].name).start();
         }
+    } else if (process.argv[2]) {
+        await new Jable(`https://jable.tv/videos/${process.argv[2].toLowerCase()}/`).start();
     } else {
-        await new Jable('https://jable.tv/videos/mide-938/').start();
+        await new Jable('https://jable.tv/videos/abp-583/').start();
     }
 })().catch(err => console.error(err));
 
+function TsQueue(jable) {
+    this.tasks = [];
+    for (let i = 0; i < jable.total; i++) {
+        this.tasks.push(i);
+    }
+    this.works = [];
+    for (let i = 1; i <= THREAD; i++) {
+        this.works.push(i);
+    }
+    const that = this;
+    this.start = function() {
+        return new Promise((resolve, reject) => {
+            for (let i = 0; i < THREAD; i++) {
+                (async (that) => {
+                    while (true) {
+                        const task = that.tasks.shift();
+                        if (task === undefined && that.works.length === THREAD) { // 没有任务了 且 工人都在休息
+                            resolve(true);
+                            break;
+                        }
+                        if (task !== undefined) {
+                            do {
+                                const work = that.works.shift();
+                                if (work) {
+                                    console.log(`work#${work} begin task#${task}, has ${that.tasks.length} task for ${that.works.length} works.`);
+                                    await jable.fetchTs(task).catch(err => console.error(err));
+                                    that.works.push(work);
+                                    console.log(`work#${work} end task#${task}, has ${that.tasks.length} task for ${that.works.length} works.`);
+                                    break;
+                                }
+                            } while (work);
+                        }
+                        await sleep(50);
+                    }
+                })(that);
+            }
+        });
+    }
+    return this;
+}
+
 function Jable(url, name) {
     this.url = url;
-    that = this;
     this.init = (name) => {
         if (!name) { return; }
         this.name = name.replace(/\//g, '_');
@@ -145,43 +187,6 @@ function Jable(url, name) {
             console.error(`merge: ${this.txt_path} => ${this.mp4_path} failed!`);
         }
     }
-    this.fetchAllTs = async () => {
-        const tasks = [];
-        for (let i = 0; i < this.total; i++) {
-            tasks.push(i);
-        }
-        const works = [];
-        for (let i = 1; i <= THREAD; i++) {
-            works.push(i);
-        }
-        return new Promise((resolve, reject) => {
-            for (let i = 0; i < THREAD; i++) {
-                (async () => {
-                    while (true) {
-                        const task = tasks.shift();
-                        console.log(`task #${task}, works.length=${works.length}`);
-                        if (task === undefined && works.length === THREAD) { // 没有任务了 且 工人都在休息
-                            resolve(true);
-                            break;
-                        }
-                        if (task !== undefined) {
-                            console.log(`got task #${task}, more ${tasks.length} count.`);
-                            const work = works.shift();
-                            if (work) {
-                                console.log(`work #${work} begin task #${task}`);
-                                await that.fetchTs(task);
-                                console.log(`work #${work} end task #${task}`);
-                                works.push(work);
-                            } else {
-                                tasks.push(task);
-                            }
-                        }
-                        await sleep(50);
-                    }
-                })();
-            }
-        });
-    }
     this.start = async () => {
         if (this.mp4_path && fs.existsSync(this.mp4_path)) {
             console.log(this.mp4_path);
@@ -194,7 +199,7 @@ function Jable(url, name) {
             return;
         }
         await this.fetchM3u8();
-        await this.fetchAllTs();
+        await new TsQueue(this).start();
         await this.merge();
     }
     this.init(name);

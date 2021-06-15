@@ -68,11 +68,7 @@ function options(useProxy, authority, referer) {
 }
 
 async function fetchBody(url, useProxy, trys) {
-    trys = trys || 1;
-    if (trys >= RETRY) {
-        console.log(`fetchBody: #${trys} ${url} => cancel`);
-        return;
-    }
+    trys = trys || 0;
     console.log(`fetchBody: #${trys} ${url}`);
     const res = await fetch(url, options(useProxy));
     console.log(`fetchBody: #${trys} ${url} => ${res.status} ${res.statusText}`);
@@ -80,8 +76,12 @@ async function fetchBody(url, useProxy, trys) {
     if (res.status === 200) {
         return await res.text();
     } else {
+        if (++trys >= 2) {
+            console.log(`fetchBody: #${trys} ${url} => cancel`);
+            return;
+        }
         await sleep(1000); // 一秒后重试
-        return await fetchBody(url, options(useProxy), ++trys);
+        return await fetchBody(url, options(useProxy), trys);
     }
 }
 
@@ -90,11 +90,7 @@ async function fetchSave(url, save_path, useProxy, authority, referer, trys) {
         console.log(`fetchSave: #${trys} ${url} => exists`);
         return;
     }
-    trys = trys || 1;
-    if (trys >= RETRY) {
-        console.log(`fetchSave: #${trys} ${url} => cancel`);
-        return;
-    }
+    trys = trys || 0;
     console.log(`fetchSave: #${trys} ${url}`);
     const res = await fetch(url, options(useProxy, authority, referer));
     console.log(`fetchSave: #${trys} ${url} => ${save_path} ${res.status} ${res.statusText}`);
@@ -107,8 +103,12 @@ async function fetchSave(url, save_path, useProxy, authority, referer, trys) {
         if (fs.existsSync(save_path)) {
             fs.unlinkSync(save_path);
         }
+        if (++trys >= RETRY) {
+            console.log(`fetchSave: #${trys} ${url} => cancel`);
+            return;
+        }
         await sleep(1000); // 一秒后重试
-        return await fetchSave(url, save_path, useProxy, authority, referer, ++trys);
+        return await fetchSave(url, save_path, useProxy, authority, referer, trys);
     }
 }
 
