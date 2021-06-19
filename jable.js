@@ -16,9 +16,9 @@ const { DATA_FILE, getCache, mkdir, sleep, fetchBody, fetchSave } = require('./c
             await new Jable(`https://jable.tv/videos/${process.argv[2].toLowerCase()}/`).start();
         } else {
             process.stdout.write(`命令行使用说明:
-    MacOS:    jable-macos   <番号>      # 例如： jable-macos   ssis-062
-    Linux:    jable-linux   <番号>      # 例如： jable-linux   ebod-833
-    Windows:  jable-win.exe <番号>      # 例如： jable-win.exe ndra-089\r\n`);
+    MacOS:    jable-macos   <番号>      # 例如: abp-583  121914-760
+    Linux:    jable-linux   <番号>      # 例如: abp-664  032517-505
+    Windows:  jable-win.exe <番号>      # 例如: abp-606  031515-828\r\n`);
             await sleep(3);
             return
         }
@@ -181,7 +181,7 @@ function Jable(url, name) {
                                 const work = works.shift();
                                 if (work) {
                                     console.log(`work#${work} begin task#${task}, has ${tasks.length} tasks to ${works.length} works.`);
-                                    await this.fetchTs(task).catch(err => console.error(err));
+                                    try { await this.fetchTs(task); } catch (err) { console.error('fetchTs error', err); }
                                     works.push(work);
                                     console.log(`work#${work} end task#${task}, has ${tasks.length} tasks to ${works.length} works.`);
                                     break;
@@ -199,14 +199,14 @@ function Jable(url, name) {
             return;
         }
         console.log(`start: url=${this.url} id=${this.id} name=${this.name}`);
-        await this.fetchWeb();
+        try { await this.fetchWeb(); } catch (err) { console.error('fetchWeb error', err); }
         if (fs.existsSync(this.mp4_path)) {
             console.log(this.mp4_path);
             return;
         }
-        await this.fetchM3u8();
-        await this.fetchAllTs();
-        await this.merge();
+        try { await this.fetchM3u8(); } catch (err) { console.error('fetchM3u8 error', err); }
+        try { await this.fetchAllTs(); } catch (err) { console.error('fetchAllTs error', err); }
+        try { await this.merge(); } catch (err) { console.error('merge error', err); }
     }
     this.init(name);
     return this;
