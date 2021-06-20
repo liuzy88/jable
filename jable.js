@@ -35,6 +35,9 @@ const { DATA_FILE, getCache, mkdir, sleep, fetchBody, fetchSave } = require('./c
 
 function Jable(url, name) {
     this.url = url;
+    this.existsMp4 = () => {
+        return (this.mp4_path && fs.existsSync(this.mp4_path)) || (this.mp4_path2 && fs.existsSync(this.mp4_path2));
+    }
     this.init = (name) => {
         if (!name) { return; }
         this.name = name.replace(/\//g, '_');
@@ -44,7 +47,9 @@ function Jable(url, name) {
         let txt_file = `${this.id}.txt`;
         this.txt_path = path.join(this.dir, txt_file);
         let mp4_name = `${this.name}.mp4`;
+        let mp4_name2 = `${this.id}.mp4`;
         this.mp4_path = path.join(MP4_DIR, mp4_name);
+        this.mp4_path2 = path.join(MP4_DIR, mp4_name2);
     }
     this.fetchWeb = async () => {
         this.cache_path = getCache(this.url);
@@ -145,8 +150,17 @@ function Jable(url, name) {
             shell.stdout.on('data', data => console.log(data.toString().trim()));
             shell.stderr.on('data', data => console.error(data.toString().trim()));
             shell.on('close', code => resolve(code));
-        });
-        if (code === 0 && fs.existsSync(this.mp4_path)) {
+        })
+        if (code !== 0) {
+            code = new Promise((resolve, reject) => {
+                const shell = spawn('ffmpeg', ['-f', 'concat', '-safe', '0', '-i', this.txt_path, '-c', 'copy', this.mp4_path2]);
+                console.log(shell.spawnargs.join(' '));
+                shell.stdout.on('data', data => console.log(data.toString().trim()));
+                shell.stderr.on('data', data => console.error(data.toString().trim()));
+                shell.on('close', code => resolve(code));
+            });
+        }
+        if (code === 0 && this.existsMp4()) {
             console.log(`merge: ${this.mp4_path} success!`);
             for (let i = 0; i < this.total; i++) {
                 let ts_name = ('00000' + i).slice(-1 * (this.total.toString().length)) + '.ts';
@@ -194,13 +208,13 @@ function Jable(url, name) {
         });
     }
     this.start = async () => {
-        if (this.mp4_path && fs.existsSync(this.mp4_path)) {
+        if (this.existsMp4()) {
             console.log(this.mp4_path);
             return;
         }
         console.log(`start: url=${this.url} id=${this.id} name=${this.name}`);
         try { await this.fetchWeb(); } catch (err) { console.error('fetchWeb error', err); }
-        if (fs.existsSync(this.mp4_path)) {
+        if (this.existsMp4()) {
             console.log(this.mp4_path);
             return;
         }
