@@ -13,8 +13,8 @@ const { DATA_FILE, getCache, fetchBody, fetchSave } = require('./comm');
     }
     let i = 0;
     while (++i < PAGES) {
-        let $ = await getWeb(`https://jable.tv/new-release/${i}/`);
         // let $ = await getWeb(`https://jable.tv/categories/uncensored/${i}/`);
+        let $ = await getWeb(`https://jable.tv/new-release/${i}/`);
         if ($) {
             $('.video-img-box').each(function () {
                 console.log('Page', i, $(this).find('.detail a').text());
