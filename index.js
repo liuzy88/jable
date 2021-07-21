@@ -28,14 +28,14 @@ const { DATA_FILE, getCache, fetchBody, fetchSave } = require('./comm');
         }
     }
     fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2));
-    for (let k in data) {
-        let mm = data[k];
-        let img_file = mm.name + path.extname(mm.jpg);
-        let img_path = path.join(IMG_DIR, img_file);
-        if (!fs.existsSync(img_path)) {
-            await fetchSave(mm.jpg, img_path, true);
-        }
-    }
+    // for (let k in data) {
+    //     let mm = data[k];
+    //     let img_file = mm.name + path.extname(mm.jpg);
+    //     let img_path = path.join(IMG_DIR, img_file);
+    //     if (!fs.existsSync(img_path)) {
+    //         await fetchSave(mm.jpg, img_path, true);
+    //     }
+    // }
 })().catch(err => console.error(err));
 
 async function getWeb(url) {

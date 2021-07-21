@@ -144,6 +144,7 @@ function Jable(url, name) {
             data.push(`file '${ts_name}'`);
         }
         fs.writeFileSync(this.txt_path, data.join('\r\n'));
+        // ffmpeg -f concat -safe 0 -i n0594.txt -c copy n0594.mp4
         let code = await new Promise((resolve, reject) => {
             const shell = spawn('ffmpeg', ['-f', 'concat', '-safe', '0', '-i', this.txt_path, '-c', 'copy', this.mp4_path]);
             console.log(shell.spawnargs.join(' '));
