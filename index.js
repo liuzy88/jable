@@ -1,44 +1,51 @@
 const fs = require('fs');
 const path = require('path');
 const cheerio = require('cheerio');
+const DB = require('./db');
 
 const { IMG_DIR, PAGES } = require('./conf');
-const { DATA_FILE, getCache, fetchBody, fetchSave } = require('./comm');
+const { getCache, fetchBody, fetchSave } = require('./comm');
 
 (async () => {
-    let data = {};
-    if (fs.existsSync(DATA_FILE)) {
-        let text = fs.readFileSync(DATA_FILE, 'utf-8');
-        data = JSON.parse(text);
+    await DB.init();
+    for (let i = 1; i < 17; i++) {
+        await scan(`https://jable.tv/categories/uncensored/`, i);
     }
-    let i = 0;
-    while (++i < PAGES) {
-        // let $ = await getWeb(`https://jable.tv/categories/uncensored/${i}/`);
-        let $ = await getWeb(`https://jable.tv/new-release/${i}/`);
-        if ($) {
-            $('.video-img-box').each(function () {
-                console.log('Page', i, $(this).find('.detail a').text());
-                data[$(this).find('.detail a').text().split(' ')[0]] = {
-                    url: $(this).find('.cover-md a').attr('href'),
-                    name: $(this).find('.detail a').text().replace(/\//g, '_'),
-                    jpg: $(this).find('.cover-md img').attr('data-src'),
-                    mp4: $(this).find('.cover-md img').attr('data-preview'),
-                };
-            });
-        }
+    for (let i = 1; i < PAGES; i++) {
+        await scan(`https://jable.tv/new-release/`, i);
     }
-    fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2));
-    // for (let k in data) {
-    //     let mm = data[k];
-    //     let img_file = mm.name + path.extname(mm.jpg);
-    //     let img_path = path.join(IMG_DIR, img_file);
-    //     if (!fs.existsSync(img_path)) {
-    //         await fetchSave(mm.jpg, img_path, true);
-    //     }
-    // }
 })().catch(err => console.error(err));
 
-async function getWeb(url) {
+async function scan(url, i) {
+    const $ = await fetchWeb(url + i + '/');
+    if ($) {
+        const array = [];
+        $('.video-img-box').each(function() {
+            let name = $(this).find('.detail a').text();
+            if (name.startsWith('[廣告] ')) {
+                name = name.substr(5);
+            }
+            let url = $(this).find('.cover-md a').attr('href');
+            array.push({
+                id: url.substring(24, url.length - 1),
+                url: url,
+                name: name.replace(/\//g, '_'),
+                jpg: $(this).find('.cover-md img').attr('data-src'),
+                mp4: $(this).find('.cover-md img').attr('data-preview'),
+            });
+        });
+        for (let j = 0; j < array.length; j++) {
+            const obj = array[j];
+            console.log('Page', i, obj.name);
+            const m = await DB.Model.findByPk(obj.id);
+            if (m == null) {
+                DB.Model.create(obj);
+            }
+        }
+    }
+}
+
+async function fetchWeb(url) {
     let cache_path = getCache(url);
     let body;
     if (fs.existsSync(cache_path)) {
@@ -55,5 +62,15 @@ async function getWeb(url) {
         fs.writeFileSync(cache_path, body);
         return cheerio.load(body);
     }
-    return null;
+}
+
+async function poster() {
+    for (let k in data) {
+        let mm = data[k];
+        let img_file = mm.name + path.extname(mm.jpg);
+        let img_path = path.join(IMG_DIR, img_file);
+        if (!fs.existsSync(img_path)) {
+            await fetchSave(mm.jpg, img_path, true);
+        }
+    }
 }

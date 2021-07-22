@@ -2,6 +2,7 @@ all:
 	if [ ! -e 'node_modules' ]; then npm install; fi
 	rm -rf ./JableTmp/.Cache/*
 	node index.js
+	node find.js
 	node jable.js
 clear:
 	rm -rf ./JableTmp/.Cache/*

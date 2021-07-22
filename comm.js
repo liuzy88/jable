@@ -6,7 +6,6 @@ const Proxy = require('https-proxy-agent');
 
 const { TMP_DIR, MP4_DIR, PROXY, RETRY, USER_AGENT } = require('./conf');
 const CACHE_DIR = path.join(TMP_DIR, '.Cache')
-const DATA_FILE = path.join(__dirname, 'data.json')
 
 function mkdir(dir) {
     if (!fs.existsSync(dir)) {
@@ -115,7 +114,6 @@ async function fetchSave(url, save_path, useProxy, authority, referer, trys) {
 }
 
 module.exports = {
-    DATA_FILE: DATA_FILE,
     getCache: getCache,
     mkdir: mkdir,
     sleep: sleep,
