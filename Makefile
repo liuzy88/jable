@@ -1,9 +1,8 @@
 all:
 	if [ ! -e 'node_modules' ]; then npm install; fi
 	rm -rf ./JableTmp/.Cache/*
-	node index.js
-	node find.js
-	node jable.js
+	node 1_fetch_data.js
+	node 4_startup.js
 clear:
 	rm -rf ./JableTmp/.Cache/*
 pkg:

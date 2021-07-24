@@ -7,33 +7,9 @@ const { Parser } = require('m3u8-parser');
 const { spawn } = require('child_process');
 
 const { TMP_DIR, MP4_DIR, THREAD } = require('./conf');
-const { DATA_FILE, getCache, mkdir, sleep, fetchBody, fetchSave } = require('./comm');
+const { getCache, mkdir, sleep, fetchBody, fetchSave } = require('./comm');
 
-(async () => {
-    const isPkg = __dirname.startsWith('/snapshot/');
-    if (isPkg) {
-        if (process.argv[2]) {
-            await new Jable(`https://jable.tv/videos/${process.argv[2].toLowerCase()}/`).start();
-        } else {
-            process.stdout.write(`命令行使用说明:
-    MacOS:    jable-macos   <番号>      # 例如: abp-583  121914-760
-    Linux:    jable-linux   <番号>      # 例如: abp-664  032517-505
-    Windows:  jable-win.exe <番号>      # 例如: abp-606  031515-828\r\n`);
-            await sleep(3);
-            return
-        }
-    } else if (fs.existsSync(DATA_FILE)) {
-        let text = fs.readFileSync(DATA_FILE, 'utf-8');
-        var data = JSON.parse(text);
-        for (let k in data) {
-            await new Jable(data[k].url, data[k].name).start();
-        }
-    } else {
-        await new Jable('https://jable.tv/videos/abp-583/').start();
-    }
-})().catch(err => console.error(err));
-
-function Jable(url, name) {
+module.exports = function Jable(url, name) {
     this.url = url;
     this.existsMp4 = () => {
         return (this.mp4_path && fs.existsSync(this.mp4_path)) || (this.mp4_path2 && fs.existsSync(this.mp4_path2));

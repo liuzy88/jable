@@ -1,13 +1,13 @@
 const fs = require('fs');
 const path = require('path');
 const cheerio = require('cheerio');
-const DB = require('./db');
 
+const DB = require('./db');
 const { IMG_DIR, PAGES } = require('./conf');
 const { getCache, fetchBody, fetchSave } = require('./comm');
 
 (async () => {
-    await DB.init();
+    await DB.connect();
     for (let i = 1; i < 17; i++) {
         await scan(`https://jable.tv/categories/uncensored/`, i);
     }
