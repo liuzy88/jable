@@ -14,6 +14,7 @@ const { MP4_DIR } = require('./conf');
             const name = path.basename(files[i], '.mp4');
             const data = await DB.Model.findByPk(name.split(' ')[0].toLowerCase());
             if (data != null && data.saved == 0) {
+                console.log(name);
                 update++;
                 data.saved = 1;
                 data.save();

@@ -1,6 +1,8 @@
 all:
+	find . -type f -name "*.DS_Store" -delete; find . -type f -name "_.*" -delete; find . -type f -name "._*" -delete
 	if [ ! -e 'node_modules' ]; then npm install; fi
-	rm -rf ./JableTmp/.Cache/*
+# 	rm -rf JableTmp/.Cache/jable.tv_categories*
+	rm -rf JableTmp/.Cache/jable.tv_videos*
 	node 1_fetch_data.js
 	node 4_startup.js
 clear:
