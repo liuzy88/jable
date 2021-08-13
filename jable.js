@@ -19,13 +19,12 @@ module.exports = function Jable(url, name) {
         this.name = name.replace(/\//g, '_');
         this.id = this.name.split(' ')[0];
         this.dir = path.join(TMP_DIR, this.id);
-        mkdir(this.dir);
         let txt_file = `${this.id}.txt`;
         this.txt_path = path.join(this.dir, txt_file);
         let mp4_name = `${this.name}.mp4`;
         let mp4_name2 = `${this.id}.mp4`;
         this.mp4_path = path.join(MP4_DIR, mp4_name);
-        this.mp4_path2 = path.join(MP4_DIR, mp4_name2);
+        this.mp4_path2 = path.join(MP4_DIR, mp4_name2); // 合并到mp4_path失败时，使用mp4_path2
     }
     this.fetchWeb = async () => {
         this.cache_path = getCache(this.url);
@@ -143,6 +142,10 @@ module.exports = function Jable(url, name) {
                 let ts_name = ('00000' + i).slice(-1 * (this.total.toString().length)) + '.ts';
                 fs.unlinkSync(path.join(this.dir, ts_name));
             }
+            fs.unlinkSync(path.join(this.dir, this.id + '.key'));
+            fs.unlinkSync(path.join(this.dir, this.id + '.m3u8'));
+            fs.unlinkSync(path.join(this.dir, this.id + '.txt'));
+            fs.rmdirSync(this.dir);
         } else {
             console.error(`merge: ${this.txt_path} => ${this.mp4_path} failed!`);
         }
@@ -185,19 +188,24 @@ module.exports = function Jable(url, name) {
         });
     }
     this.start = async () => {
-        if (this.existsMp4()) {
-            console.log(this.mp4_path);
-            return;
+        try {
+            if (this.existsMp4()) {
+                console.log(this.mp4_path);
+                return;
+            }
+            console.log(`start: url=${this.url} id=${this.id} name=${this.name}`);
+            await this.fetchWeb();
+            if (this.existsMp4()) {
+                console.log(this.mp4_path);
+                return;
+            }
+            mkdir(this.dir);
+            await this.fetchM3u8();
+            await this.fetchAllTs();
+            await this.merge();
+        } catch(err) {
+            console.error(this.id + ' error', err);
         }
-        console.log(`start: url=${this.url} id=${this.id} name=${this.name}`);
-        try { await this.fetchWeb(); } catch (err) { console.error('fetchWeb error', err); }
-        if (this.existsMp4()) {
-            console.log(this.mp4_path);
-            return;
-        }
-        try { await this.fetchM3u8(); } catch (err) { console.error('fetchM3u8 error', err); }
-        try { await this.fetchAllTs(); } catch (err) { console.error('fetchAllTs error', err); }
-        try { await this.merge(); } catch (err) { console.error('merge error', err); }
     }
     this.init(name);
     return this;
