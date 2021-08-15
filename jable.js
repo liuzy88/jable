@@ -164,23 +164,23 @@ module.exports = function Jable(url, name) {
                 (async () => {
                     while (true) {
                         const task = tasks.shift();
-                        if (task === undefined && works.length === THREAD) { // 没有任务了 且 工人都在休息
-                            resolve(true);
-                            break;
+                        if (task === undefined) { // 没有任务了
+                            if (works.length === THREAD) { //  且 工人都在休息
+                                resolve(true);
+                                break;
+                            }
+                            await sleep(100);
+                            continue;
                         }
-                        if (task === undefined) {
-                            await sleep(50);
-                        } else {
-                            do {
-                                const work = works.shift();
-                                if (work) {
-                                    console.log(`work#${work} begin task#${task}, has ${tasks.length} tasks to ${works.length} works.`);
-                                    try { await this.fetchTs(task); } catch (err) { console.error('fetchTs error', err); }
-                                    works.push(work);
-                                    console.log(`work#${work} end task#${task}, has ${tasks.length} tasks to ${works.length} works.`);
-                                    break;
-                                }
-                            } while (true);
+                        while (true) {
+                            const work = works.shift();
+                            if (work) {
+                                console.log(`work#${work} begin task#${task}, has ${tasks.length} tasks to ${works.length} works.`);
+                                try { await this.fetchTs(task); } catch (err) { console.error('fetchTs error', err); }
+                                works.push(work);
+                                console.log(`work#${work} end task#${task}, has ${tasks.length} tasks to ${works.length} works.`);
+                                break;
+                            }
                         }
                     }
                 })();
@@ -203,7 +203,7 @@ module.exports = function Jable(url, name) {
             await this.fetchM3u8();
             await this.fetchAllTs();
             await this.merge();
-        } catch(err) {
+        } catch (err) {
             console.error(this.id + ' error', err);
         }
     }
